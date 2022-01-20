@@ -136,3 +136,89 @@ class InvRedshiftIncompleteness(Degrader):
         mask = rng.random(size=data.shape[0]) <= survival_prob
 
         return data[mask]
+
+
+class DEEP2Selection(Degrader):
+    """Degrader that models the color selections used for DEEP2 specz
+    sample selection.  Cuts are originally in B-R and R-I, we will
+    need to transform to g-r and r-i with some color transforms
+
+    Selection is essentially just binary flag where we keep objects if:
+    g-r <= gr_cut OR r-i >= ri_cut OR g-r <= gr_ri_slope * r-i + gr_ri_offset
+    """
+
+    def __init__(self, g_name="mag_g_lsst", r_name="mag_r_lsst",
+                 i_name="mag_i_lsst", gr_cut=0.25, ri_cut=1.0,
+                 gr_ri_slope=2.27, gr_ri_offset=-0.27,
+                 imag_limit=25.5, tanh_midpt=23.7,
+                 tanh_width=1.5):
+        """
+        Parameters
+        ----------
+        g_name : str
+          name of g-filter column in dataframe
+        r_name : str
+          name of r-filter column in dataframe
+        i_name : str
+          name of i-filter column in dataframe
+        gr_cut : float, default = 0.25
+          color cut for g-r color
+        ri_cut : float, default = 1.0
+          color cut for ri- color
+        gr_ri_slope : float, default = 2.27
+          slope of joint r-i vs g-r cut
+        gr_ri_offset : float, default = - 0.27
+          offset in r-i vs g-r cut
+        imag_limit : float, default = 25.5
+          hard cutoff where no specz included above this i-mag
+        tanh_midpt : float, default = 23.7
+          value where random selection of imag "success" reaches 50%
+        tanh_width : float, default = 1.5
+          scaling factor controlling speed of tanh specz "success"
+
+        Returns
+        -------
+        pd.DataFrame
+          Dataframe of DEEP2 mock spec-z selection
+        """
+        self.g_name = g_name
+        self.r_name = r_name
+        self.i_name = i_name
+        self.gr_cut = gr_cut
+        self.ri_cut = ri_cut
+        self.gr_ri_slope = gr_ri_slope
+        self.gr_ri_offset = gr_ri_offset
+        self.imag_limit = imag_limit
+        self.tanh_midpt = tanh_midpt
+        self.tanh_width = tanh_width
+
+    def __call__(self, data: pd.DataFrame, seed: int) -> pd.DataFrame:
+        """
+        Parameters
+        ----------
+        data : pd.DataFrame
+          Dataframe of galaxy data
+        seed : int
+          random int
+
+        Returns
+        -------
+        pd.DataFrame
+          Dataframe of DEEP2 mock spec-z selection
+        """
+        gr = data[self.g_name] - data[self.r_name]
+        ri = data[self.r_name] - data[self.i_name]
+        # mask out the color selection in gri space to model DEEP2-like cuts
+        color_mask = np.logical_or(gr <= self.gr_cut,
+                                   np.logical_or(ri >= self.ri_cut,
+                                                 gr <= self.gr_ri_slope * ri + self.gr_ri_offset))
+        # add a hard cut above a certain magnitude limit
+        mag_mask = np.logical_and(color_mask, data[self.i_name] <= self.imag_limit)
+
+        # generate random numbers to model fall off in specz completeness
+        rng = np.random.default_rng(seed)
+        tanh_mask = rng.random(size=data.shape[0]) <= np.tanh(self.tanh_width * (self.tanh_midpt - data[self.i_name]))
+
+        mask = np.logical_and(mag_mask, tanh_mask)
+
+        return data[mask]
