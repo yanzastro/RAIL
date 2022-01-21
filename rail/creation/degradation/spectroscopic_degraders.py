@@ -150,8 +150,7 @@ class DEEP2Selection(Degrader):
     def __init__(self, g_name="mag_g_lsst", r_name="mag_r_lsst",
                  i_name="mag_i_lsst", gr_cut=0.25, ri_cut=1.0,
                  gr_ri_slope=2.27, gr_ri_offset=-0.27,
-                 imag_limit=25.5, tanh_midpt=23.7,
-                 tanh_width=1.5):
+                 tanh_zeropt=23.7, tanh_width=0.35):
         """
         Parameters
         ----------
@@ -169,10 +168,8 @@ class DEEP2Selection(Degrader):
           slope of joint r-i vs g-r cut
         gr_ri_offset : float, default = - 0.27
           offset in r-i vs g-r cut
-        imag_limit : float, default = 25.5
-          hard cutoff where no specz included above this i-mag
-        tanh_midpt : float, default = 23.7
-          value where random selection of imag "success" reaches 50%
+        tanh_zeropt : float, default = 23.7
+          value where random selection of imag "success" goes to zero
         tanh_width : float, default = 1.5
           scaling factor controlling speed of tanh specz "success"
 
@@ -188,8 +185,7 @@ class DEEP2Selection(Degrader):
         self.ri_cut = ri_cut
         self.gr_ri_slope = gr_ri_slope
         self.gr_ri_offset = gr_ri_offset
-        self.imag_limit = imag_limit
-        self.tanh_midpt = tanh_midpt
+        self.tanh_zeropt = tanh_zeropt
         self.tanh_width = tanh_width
 
     def __call__(self, data: pd.DataFrame, seed: int) -> pd.DataFrame:
@@ -212,13 +208,11 @@ class DEEP2Selection(Degrader):
         color_mask = np.logical_or(gr <= self.gr_cut,
                                    np.logical_or(ri >= self.ri_cut,
                                                  gr <= self.gr_ri_slope * ri + self.gr_ri_offset))
-        # add a hard cut above a certain magnitude limit
-        mag_mask = np.logical_and(color_mask, data[self.i_name] <= self.imag_limit)
 
         # generate random numbers to model fall off in specz completeness
         rng = np.random.default_rng(seed)
-        tanh_mask = rng.random(size=data.shape[0]) <= np.tanh(self.tanh_width * (self.tanh_midpt - data[self.i_name]))
+        tanh_mask = rng.random(size=data.shape[0]) <= np.tanh(self.tanh_width * (self.tanh_zeropt - data[self.i_name]))
 
-        mask = np.logical_and(mag_mask, tanh_mask)
+        mask = np.logical_and(color_mask, tanh_mask)
 
         return data[mask]
