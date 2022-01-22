@@ -172,12 +172,16 @@ class DEEP2Selection(Degrader):
           value where random selection of imag "success" goes to zero
         tanh_width : float, default = 1.5
           scaling factor controlling speed of tanh specz "success"
-
-        Returns
-        -------
-        pd.DataFrame
-          Dataframe of DEEP2 mock spec-z selection
         """
+        # check types of all the params
+        for val in [g_name, r_name, i_name]:
+            if not isinstance(val, str):
+                raise ValueError(f"filter names must be strings, got value of {val}")
+        for val in [gr_cut, ri_cut, gr_ri_slope, gr_ri_offset,
+                    tanh_zeropt, tanh_width]:
+            if not isinstance(val, (int, float)):
+                raise ValueError(f"expected float for color and tanh params, got {val}")
+        
         self.g_name = g_name
         self.r_name = r_name
         self.i_name = i_name
@@ -202,6 +206,11 @@ class DEEP2Selection(Degrader):
         pd.DataFrame
           Dataframe of DEEP2 mock spec-z selection
         """
+        # test that names are in dataframe
+        for val in [self.g_name, self.r_name, self.i_name]:
+            if val not in data.keys():
+                raise ValueError(f"filter name {val} not present in DataFrame")
+
         gr = data[self.g_name] - data[self.r_name]
         ri = data[self.r_name] - data[self.i_name]
         # mask out the color selection in gri space to model DEEP2-like cuts

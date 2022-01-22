@@ -72,6 +72,33 @@ def test_InvRedshiftIncompleteness_returns_correct_shape(data):
 
 
 @pytest.mark.parametrize(
+    "g, r, i, grc, ric, grisl, grio, tz, tw",
+      [("g", 99., "i", 0.0, 0.0, 2.0, 0.0, 25.8, 13.0),
+       ("g", "r", "i", "hi", 0.0, 2.0, 0.0, 25.8, 13.0),
+      ])
+def test_DEEP2degrader_bad_params(g, r, i, grc, ric, grisl, grio,
+                                  tz, tw):
+    """Test for incorrect types in input values"""
+    with pytest.raises(ValueError):
+        DEEP2Selection(g, r, i, grc, ric, grisl, grio, tz, tw)
+
+
+def test_DEEP2degrader_bad_filtname(data):
+    """test failure of filt name not in dataframe"""
+    degrader = DEEP2Selection("H","r","i",0.0,0.0,2.0,0.0,25.8,15)
+    with pytest.raises(ValueError):
+        cut_data = degrader(data, seed=97)
+
+
+def test_DEEP2degrader_shape(data):
+    """Make sure returns same number of columns, fewer rows"""
+    degrader = DEEP2Selection("g","r","i",0.0,0.0,2.0,0.0,25.8,15)
+    cut_data = degrader(data, seed=97)
+    assert(cut_data.shape[0] < data.shape[0])
+    assert(cut_data.shape[1] == data.shape[1])
+    
+    
+@pytest.mark.parametrize(
     "cuts,error",
     [
         (1, TypeError),
